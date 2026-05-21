@@ -1,0 +1,38 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Allow users to read any profile if signed in, but only write their own
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId);
+      
+      match /likes/{targetUserId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
+    }
+    
+    // Matches and their subcollections
+    match /matches/{matchId} {
+      // Users can read matches they are part of
+      allow read: if isSignedIn() && (request.auth.uid in resource.data.users);
+      allow create: if isSignedIn();
+      // Allow update if the user is one of the matched parties
+      allow update: if isSignedIn() && (request.auth.uid in resource.data.users);
+      
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+      }
+    }
+  }
+}
